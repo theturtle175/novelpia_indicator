@@ -4,9 +4,9 @@
 
 ## 설치
 
-**[최신 버전 설치 (.user.js)](https://raw.githubusercontent.com/theturtle175/novelpia_indicator/main/novelpia_indicator.user.js)**
+[![노벨피아 인디케이터 설치](https://img.shields.io/badge/Violentmonkey-원클릭_설치-2563EB?style=for-the-badge&logo=firefoxbrowser&logoColor=white)](https://raw.githubusercontent.com/theturtle175/novelpia_indicator/main/novelpia_indicator.user.js)
 
-Android Firefox + Violentmonkey에서 위 링크를 열어 설치하세요. v1.3.6 이하를 기존에 설치했다면 이번 한 번은 기존 스크립트를 제거하거나 새 코드로 교체해야 합니다. 중복 설치를 피하세요.
+**Android Firefox + Violentmonkey**를 설치한 뒤 위 버튼을 누르면 사용자 스크립트 설치 확인 화면이 열립니다. 설치 확인을 눌러 완료하세요. (브라우저/확장 기능에 따라 파일이 다운로드되면 Violentmonkey에서 'URL에서 설치'를 이용하세요.) v1.3.6 이하를 기존에 설치했다면 이번 한 번은 기존 스크립트를 제거하거나 새 코드로 교체해야 합니다. 중복 설치를 피하세요.
 
 ## 자동 업데이트
 
