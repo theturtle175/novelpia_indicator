@@ -14,7 +14,7 @@ v1.3.7부터 GitHub의 공개 배포 파일에 다음 메타데이터를 포함�
 
 - `@updateURL`: `https://raw.githubusercontent.com/theturtle175/novelpia_indicator/main/novelpia_indicator.user.js`
 - `@downloadURL`: 위와 동일한 주소
-- `@version`: 1.3.7
+- `@version`: 1.3.8
 
 앞으로 새 버전을 게시할 때는 `main/novelpia_indicator.user.js`의 `@version`과 내부 `VERSION`을 함께 올려야 합니다. Violentmonkey의 자동 업데이트 확인 주기 및 환경에 따라 실제 반영 시점은 달라집니다. 필요하면 확장 프로그램에서 수동으로 업데이트를 확인하세요.
 
@@ -27,4 +27,4 @@ GitHub에 코드를 올리기만 해서는 즉시 설치 스크립트가 변경�
 - 종합 점수와 9등급 캐릭터
 - Android Firefox + Violentmonkey 대상으로 개발
 
-v1.3.7은 v1.3.6에 자동 업데이트용 메타데이터를 추가한 릴리스이며 기존 분석 계산식은 유지합니다.
+**최신 버전: v1.3.8.** 예약 공개 회차 수집 오류를 방지하고, BONUS 회차에 일반 회차와 동일한 급락 설명을 적용했으며, 분석 중단 버튼을 다른 헤더 버튼과 동일한 정사각형 크기로 조정했습니다.
