@@ -22,7 +22,7 @@ v1.3.7부터 GitHub의 공개 배포 파일에 다음 메타데이터를 포함�
 
 - `@updateURL`: `https://raw.githubusercontent.com/theturtle175/novelpia_indicator/main/novelpia_indicator.user.js`
 - `@downloadURL`: 위와 동일한 주소
-- `@version`: 1.3.9
+- `@version`: 1.3.10
 
 앞으로 새 버전을 게시할 때는 `main/novelpia_indicator.user.js`의 `@version`과 내부 `VERSION`을 함께 올려야 합니다. Violentmonkey의 자동 업데이트 확인 주기 및 환경에 따라 실제 반영 시점은 달라집니다. 필요하면 확장 프로그램에서 수동으로 업데이트를 확인하세요.
 
@@ -35,4 +35,4 @@ GitHub에 코드를 올리기만 해서는 즉시 설치 스크립트가 변경�
 - 종합 점수와 9등급 캐릭터
 - Android Firefox + Violentmonkey 대상으로 개발
 
-**최신 버전: v1.3.9.** 만료된 분석 체크포인트를 안전하게 정리하고, 브라우저 저장 용량 초과 시 오래된 완료 기록 삭제 후 재시도합니다. 저장 오류 원인을 구분해서 표시하며 기존 분석 계산식과 GitHub 자동 업데이트 기능은 유지합니다.
+**최신 버전: v1.3.10.** 최근 15회차를 일괄 제외하던 방식 대신, 공개 후 72시간 미경과 회차만 장기 연독률·조회수 안정성·급락 평가에서 제외합니다. 정확한 공개 시각을 확인할 수 없는 날짜 표기는 보수적으로 처리합니다. GitHub 자동 업데이트 기능은 유지합니다.
