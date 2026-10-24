@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         노벨피아 인디케이터 — 작품 분석
 // @namespace    https://novelpia.com/indicator/cover-overlay
-// @version      1.3.9
+// @version      1.3.10
 // @description  종합점수 등급 캐릭터, 분석 결과의 총 조회수·회차 수 표시, 기존 평가 유지.
 // @match        https://novelpia.com/*
 // @match        https://www.novelpia.com/*
@@ -14,7 +14,7 @@
 
 (() => {
   'use strict';
-  const VERSION = '1.3.9';
+  const VERSION = '1.3.10';
   // 등급 캐릭터 이미지는 데이터 URI로 내장하여 네트워크와 별도 설치 없이 표시한다.
   // 현재 절대평가 컷은 임시 운영값(90, 80, ..., 20)으로 분리해 둔다.
   const GRADE_CUTS = Object.freeze([90,80,70,60,50,40,30,20]);
@@ -44,7 +44,7 @@
     verifyBatchSize: 100,
     safetyPages: 5000, // 중단 시 오류 표시. 1400화 고정 제한 아님
     checkpointTtl: 7 * 24 * 60 * 60_000,
-    recentExclusion: 15,
+    recentWindowMs: 72 * 60 * 60_000, // 72시간 미경과 회차는 연독·안정성 평가 제외
   });
   if (window.__novelpiaIndicatorVersion) return;
   window.__novelpiaIndicatorVersion = VERSION;
@@ -281,11 +281,20 @@
       // 제목 또는 조회수 통계가 있는 행만 수집한다. 정체불명 UI 항목은 제외한다.
       if (!chapterMatch && !(title && views !== null) && !episodeCode) continue;
       const displayChapter = chapterMatch ? Number(chapterMatch[1]) : null;
+      // 날짜·시간을 제공하는 목록 레이아웃의 정밀도를 우선 사용한다.
+      const timeNode = row.querySelector('time[datetime], [data-published-at], [data-created-at], .ep_date, .episode_date, .ep_time');
+      const dateAttribute = row.getAttribute('data-published-at') ||
+        row.getAttribute('data-created-at') || timeNode?.getAttribute('datetime') ||
+        timeNode?.getAttribute('data-published-at') ||
+        timeNode?.getAttribute('data-created-at') ||
+        timeNode?.getAttribute('title') || '';
+      const dateMatch = text.match(/\b(?:\d{4}|\d{2})[.\/-]\d{1,2}[.\/-]\d{1,2}(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?/);
+      const publishedAt = dateAttribute || timeNode?.textContent?.trim() || dateMatch?.[0] || '';
       entries.push({
         chapter: displayChapter, display_chapter: displayChapter,
         display_label: displayChapter === null ? (title || '특수 회차') : (displayChapter === 0 ? 'EP.0' : `${displayChapter}화`),
         episode_code: episodeCode, title,
-        date: text.match(/\b\d{2}\.\d{2}\.\d{2}\b/)?.[0] || '',
+        date: dateMatch?.[0]?.split(/\s+/)[0] || '', published_at: publishedAt,
         views, recommendations: afterIcon(row, 'ion-thumbsup'),
         comments: afterIcon(row, 'ion-chatbox-working'),
         characters: afterIcon(row, 'ion-document-text'),
@@ -502,7 +511,7 @@
     return result;
   }
 
-  // 안정성 평가: 26화 기준점부터 최신 15개 회차를 제외한 동일한 장기 연독 구간.
+  // 안정성 평가: EP.26부터 게시 후 72시간이 지난 회차만 사용하는 장기 연독 구간.
   // 로그 변화율 중앙값(강건 추세), MAD(강건한 이상도), 국소 상승 이상치 및
   // 동일 시점에서 관측된 연속 회차의 수준 이동으로 급락 사건을 판정한다.
   // 한 시점의 누적 조회수만 사용한다. 8% / 3σ / 1.5%p 는 임시 임계값이다.
@@ -652,7 +661,33 @@
       status:evaluated<30?'표본 적음 · 잠정 평가':'평가 완료'};
   }
 
-  function analyze(rows) {
+  // 게시 시각은 한국 표준시(KST, UTC+9)로 해석한다.
+  // 날짜만 있으면 그날 마지막 시각에 게시됐다고 가정해 72시간 경계를 보수적으로 처리한다.
+  function episodePublicationWindow(row) {
+    const raw = String(row?.published_at || row?.date || '').trim();
+    if (!raw) return null;
+    if (/^\d{10,13}$/.test(raw)) {
+      const n = Number(raw);
+      const instant = raw.length===10 ? n*1000 : n;
+      return Number.isFinite(instant) && instant>=Date.UTC(2000,0,1) && instant<Date.UTC(2100,0,1)
+        ? {latest:instant,exact:true} : null;
+    }
+    if (/^\d{4}-\d{1,2}-\d{1,2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})$/i.test(raw)) {
+      const t=Date.parse(raw);
+      return Number.isFinite(t) ? {latest:t,exact:true} : null;
+    }
+    const m=raw.match(/(?:^|[^\d])(\d{2}|\d{4})[.\/-](\d{1,2})[.\/-](\d{1,2})(?:[T\s]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+    if (!m) return null;
+    const yy=Number(m[1].length===2?'20'+m[1]:m[1]), mm=Number(m[2]),dd=Number(m[3]);
+    const timed=m[4]!==undefined,h=timed?Number(m[4]):0,mi=timed?Number(m[5]):0,se=m[6]?Number(m[6]):0;
+    if(yy<2000||yy>2099||mm<1||mm>12||dd<1||dd>31||h>23||mi>59||se>59)return null;
+    const naive=Date.UTC(yy,mm-1,dd,h,mi,se), check=new Date(naive);
+    if(check.getUTCFullYear()!==yy||check.getUTCMonth()!==mm-1||check.getUTCDate()!==dd)return null;
+    const instant=naive-9*60*60_000;
+    return {latest:timed?instant:instant+24*60*60_000-1,exact:timed};
+  }
+
+  function analyze(rows, now = Date.now()) {
     const data = rows.slice().sort((a, b) => a.chapter - b.chapter)
       .map(x => ({...x, views: Number.isFinite(x.views) ? x.views : null,
         recommendations: Number.isFinite(x.recommendations) ? x.recommendations : null}));
@@ -663,7 +698,22 @@
       new Set(displayLabels).size !== displayLabels.length;
     const maxChapter = data[N - 1].chapter;
     const byChapter = new Map(data.map(x => [x.chapter, x]));
-    const matureLimit = maxChapter - CONFIG.recentExclusion;
+    const windows=data.map(row=>episodePublicationWindow(row));
+    const cutoff=now-CONFIG.recentWindowMs;
+    let lastKnownOld=-1;
+    for (let i=0;i<N;i++) {
+      const win=windows[i];
+      data[i].publishedTimeKnown=win!==null;
+      data[i].recent=win!==null && win.latest>cutoff;
+      if(win && !data[i].recent)lastKnownOld=i;
+    }
+    // 날짜가 없는 최신 회차는 새로 공개됐을 가능성이 있어 평가를 보류한다.
+    for(let i=lastKnownOld+1;i<N;i++)if(!windows[i])data[i].recent=true;
+    const matureRows=data.filter(row=>!row.recent);
+    const recentCount=N-matureRows.length;
+    const matureLimit=matureRows.at(-1)?.chapter||0;
+    const nextMaturityAt=windows.filter(win=>win&&win.latest>cutoff)
+      .reduce((earliest,win)=>Math.min(earliest,win.latest+CONFIG.recentWindowMs),Infinity);
     const numericViews = data.filter(x => Number.isFinite(x.views));
     const numericRecommendations = data.filter(x => Number.isFinite(x.recommendations));
     const viewsSum = numericViews.reduce((a, x) => a + x.views, 0);
@@ -683,11 +733,11 @@
       // BONUS의 급락 판정 및 설명은 일반 회차와 동일한 안정성 분석 결과를 사용한다.
       current.paywall = !!(prior?.is_free && current.is_plus &&
         !isBonusEpisode(prior) && !isBonusEpisode(current));
-      current.recent = current.chapter > matureLimit;
+      // 날짜 기반 제외 판정값은 그대로 유지한다.
     }
     // 구형 전체 구간 중앙값/급락 후보는 최종 안정성 판정에 사용되지 않는다.
     // 도입부 및 무료→유료 전환은 참고 이벤트로 그대로 보존한다.
-    const singles=data.filter(x=>x.chapter>=4&&x.chapter<=matureLimit&&x.paywall&&
+    const singles=data.filter(x=>x.chapter>=4&&!x.recent&&!byChapter.get(x.chapter-1)?.recent&&x.paywall&&
       Number.isFinite(x.deltaPercent)).map(x=>({
       kind:'transition',start:x.chapter-1,end:x.chapter,
       loss:byChapter.get(x.chapter-1).views-x.views,
@@ -698,13 +748,13 @@
       singles.unshift({kind:'intro',start:1,end:2,loss:first.views-second.views,
         percent:second.views/first.views-1,reason:'도입부 1→2화: 일반 회차와 별도 해석'});
     }
-    const longFrom=data.find(x=>x.display_chapter===26);
-    const stability = stabilityAnalysis(data,matureLimit,longFrom);
+    const longFrom=matureRows.find(x=>x.display_chapter===26);
+    const stability = stabilityAnalysis(matureRows,matureLimit,longFrom);
     // 안정성 점수는 통계적 급락 사건만으로 결정한다. 기존 도입부·전환 이벤트는 참고 표시.
     const informational = singles.filter(x=>x.kind==='intro'||x.kind==='transition');
     const stabilitySingles = [...informational,...stability.singles];
     const stabilityBands = stability.bands;
-    const longTo = byChapter.get(matureLimit);
+    const longTo = matureRows.at(-1);
     const longTerm = longFrom?.views > 0 && Number.isFinite(longTo?.views) && longTo.chapter > longFrom.chapter
       ? longTo.views / longFrom.views : null;
     // 그래프는 26화 실제 조회수 대비 비율(100%=EP.26)을 원본 그대로 보여준다.
@@ -739,7 +789,8 @@
     const score = usableForScore ? breakdown.reduce((sum,x)=>sum+x.value,0) : null;
     const metricGrades = Object.fromEntries(Object.entries(metricScores)
       .map(([key,value])=>[key,scoreToGrade(value)]));
-    return {data, hasSpecial, maxChapter, matureLimit, viewsSum, recommendationsSum, avg, recRate,
+    return {data, hasSpecial, maxChapter, matureLimit, recentCount, nextMaturityAt,
+      viewsSum, recommendationsSum, avg, recRate,
       longTerm, retentionAdjusted, retentionLength, retentionAnchorChapter:longFrom?.chapter||null,
       metricScores, metricGrades, totalGrade:scoreToGrade(score),
       continuous, full, singles:stabilitySingles, bands:stabilityBands,
@@ -833,7 +884,7 @@
       <div class="section"><span>회차별 추이</span><div class="tabs" id="tabs"></div></div>
       <div class="chartControls"><button class="btn" id="zoomIn" type="button">확대 +</button><button class="btn" id="zoomOut" type="button">축소 −</button><button class="btn" id="zoomReset" type="button">전체 보기</button><span id="rangeLabel" style="color:#aebad3;font-size:11px"></span></div>
       <div class="chartBox" id="chartBox"><svg id="plot" viewBox="0 0 900 335" role="img" aria-label="회차별 통계 그래프" tabindex="0"></svg><div class="tt" id="tooltip"></div></div><div class="pointDetail" id="pointDetail" hidden></div>
-      <div class="legend"><span><i class="swatch" style="background:#f17b82"></i>단일 급락</span><span><i class="swatch" style="background:#e6ad57"></i>연속 급락 밴드</span><span><i class="swatch" style="background:#76d6d0"></i>급증(감점 없음)</span><span><i class="swatch" style="background:#8895a9"></i>최근 15화(해석 주의)</span></div>
+      <div class="legend"><span><i class="swatch" style="background:#f17b82"></i>단일 급락</span><span><i class="swatch" style="background:#e6ad57"></i>연속 급락 밴드</span><span><i class="swatch" style="background:#76d6d0"></i>급증(감점 없음)</span><span><i class="swatch" style="background:#8895a9"></i>공개 후 72시간 미경과(평가 제외)</span></div>
       <div class="section"><span>급락 회차·밴드</span></div>
       <div class="eventList" id="events"></div>
       <div class="section">데이터 내보내기</div><div style="display:flex;gap:9px;flex-wrap:wrap"><button class="btn primary" id="export">CSV 저장</button><button class="btn" id="copy">CSV 복사</button><a id="detailLink" class="btn" style="text-decoration:none" target="_blank" rel="noopener">작품 페이지 ↗</a></div>
@@ -988,9 +1039,13 @@
       if(firstBandWidth>=75) plot.append(svgEl('text', {x:X(minEp)+firstBandWidth/2,y:top+16,
         'text-anchor':'middle','font-size':11,fill:'#9fadc2'},'초반 1~25화'));
     }
-    if (current.metrics.matureLimit + 1 <= maxEp) {
-      plot.append(svgEl('rect', {'data-region':'recent-excluded',x: X(current.metrics.matureLimit + 0.5), y: bandY,
-        width: Math.max(0, X(maxEp) - X(current.metrics.matureLimit + 0.5)), height: bandH, fill: '#7f8fa6', opacity: .23}));
+    // 날짜별 최근 회차가 중간에 끼어도 실제 제외된 회차에만 음영을 칠한다.
+    for (const row of current.metrics.data) {
+      if (!row.recent || row.chapter<minEp || row.chapter>maxEp) continue;
+      const x0=X(Math.max(minEp,row.chapter-.5));
+      const x1=X(Math.min(maxEp,row.chapter+.5));
+      plot.append(svgEl('rect',{'data-region':'recent-excluded',x:x0,y:bandY,
+        width:Math.max(0,x1-x0),height:bandH,fill:'#7f8fa6',opacity:.23}));
     }
     // Bands always remain visible. Place text in multiple lanes and collapse dense labels.
     const bandLanes=[[],[],[],[]],hiddenBandLabels=[];
@@ -1091,7 +1146,8 @@
       const diag=m.stabilityDiagnostics?.get(row.chapter);
       const existing=m.stabilityEvents?.find(e=>e.end===row.chapter||e.onset===row.chapter||e.kind==='band'&&row.chapter>=e.start&&row.chapter<=e.end);
       const spike=m.spikes?.find(e=>e.end===row.chapter);
-      const excluded=row.chapter<=m.retentionAnchorChapter?'초반 탐색 구간 제외':row.chapter>m.matureLimit?'최근 15화 제외':null;
+      const excluded=row.recent?(row.publishedTimeKnown?'공개 후 72시간 미경과 · 평가 제외':'공개 시각 확인 불가 · 평가 보류'):
+        row.chapter<=m.retentionAnchorChapter?'초반 탐색 구간 제외':null;
       add('급락 판정',excluded|| (spike?'급증 (감점 없음)':existing?(existing.kind==='band'?'급락 밴드':'단일 급락'):'급락 아님'));
       if(diag&&Number.isFinite(diag.expected)&&!excluded&&!spike) {
         if(Number.isFinite(diag.slope))add('평소 회차당 감소율 (최근 최대 10개)',signPercent(Math.expm1(diag.slope)));
@@ -1228,7 +1284,7 @@
       tile('평균 조회수',integer(m.avg),'만점 기준 15,000회',m.metricScores.views),
       tile('전체 추천률',percent(m.recRate),'만점 기준 10%',m.metricScores.recommendations),
       tile('장기 연독률',`보정 ${percent(m.retentionAdjusted)}`,
-        `EP.26 → ${m.byChapter.get(m.matureLimit)?.display_label || `${m.matureLimit}화`} · 만점 기준 60%`,
+        `EP.26 → ${m.byChapter.get(m.matureLimit)?.display_label || '평가 가능 회차 없음'} · 최근 72시간 ${m.recentCount}회 제외 · 만점 기준 60%`,
         m.metricScores.retention,`순수 ${percent(m.longTerm)}`),
       tile('조회수 안정성',Number.isFinite(m.stabilityScore)?`${m.stabilityScore}점`:'평가 불가',
         Number.isFinite(m.stabilityScore)?`${m.stabilityStatus} · 급락 ${m.stabilityEvents.length}건`:
@@ -1267,7 +1323,7 @@
       const card = document.createElement('div');card.className=`event ${event.kind==='band'?'bandEvent':event.kind==='spike'?'spikeEvent':'singleEvent'}`;
       const top=document.createElement('div');top.className='eventTop';
       const badge=document.createElement('span');badge.className=`eventLabel ${event.kind==='band'?'band':event.kind==='single'?'single':event.kind==='spike'?'spike':'other'}`;
-      badge.textContent = event.kind==='band'?'급락 밴드':event.kind==='single'?'단일 급락':event.kind==='transition'?'전환 구간':event.kind==='recent'?'최근 15화 주의':event.kind==='spike'?'급증':'도입부';
+      badge.textContent = event.kind==='band'?'급락 밴드':event.kind==='single'?'단일 급락':event.kind==='transition'?'전환 구간':event.kind==='recent'?'최근 72시간 주의':event.kind==='spike'?'급증':'도입부';
       const chapter=document.createElement('span');const startLabel=m.byChapter.get(event.start)?.display_label || `${event.start}화`;
       const endLabel=m.byChapter.get(event.end)?.display_label || `${event.end}화`;
       chapter.textContent=event.kind==='spike' ? endLabel : /^\d+화$/.test(startLabel) && /^\d+화$/.test(endLabel)
@@ -1453,6 +1509,8 @@
     });
     const cached=cache.get(key);
     if(!force&&cached&&Date.now()-cached.at<CONFIG.cacheTtl) {
+      if(Date.now() >= (cached.result.metrics.nextMaturityAt ?? Infinity))
+        cached.result.metrics=analyze(cached.result.metrics.data);
       $('stopAnalysis').hidden=true;
       current=cached.result;setHeader(key,current,current.metrics.data.length);
       state.textContent=summaryStatus(current.metrics);render();$('etaPanel').hidden=true;return;
