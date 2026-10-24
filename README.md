@@ -8,20 +8,6 @@
 
 **Android Firefox + Violentmonkey**를 설치한 뒤 위 버튼을 누르면 사용자 스크립트 설치 확인 화면이 열립니다. 설치 확인을 눌러 완료하세요. (브라우저/확장 기능에 따라 파일이 다운로드되면 Violentmonkey에서 'URL에서 설치'를 이용하세요.) v1.3.6 이하를 기존에 설치했다면 이번 한 번은 기존 스크립트를 제거하거나 새 코드로 교체해야 합니다. 중복 설치를 피하세요.
 
-## Greasy Fork 배포 및 설치 통계
-
-[![Greasy Fork 게시 설정](https://img.shields.io/badge/Greasy%20Fork-설치%20통계%20연결%20안내-229954?style=for-the-badge)](./docs/GREASY_FORK_SETUP.md)
-
-Greasy Fork는 **설치 횟수·일별 설치·업데이트 확인 횟수**를 집계합니다. GitHub `main`의 원본 스크립트를 가져와 **자동 동기화**할 수 있습니다.
-
-> **현재 상태: 게시자 계정으로 Greasy Fork 최초 등록 전.** 통계 수집은 그 사이트에 실제로 게시되어 Greasy Fork 설치 버튼을 사용하기 시작한 후부터 가능합니다. 기존 GitHub Raw 설치 수는 소급 집계되지 않습니다.
-
-- [Greasy Fork 등록 페이지(로그인 필요)](https://greasyfork.org/ko/import)
-- [등록·자동 동기화·설치 통계 상세 안내](./docs/GREASY_FORK_SETUP.md)
-- 등록할 GitHub raw 주소: `https://raw.githubusercontent.com/theturtle175/novelpia_indicator/main/novelpia_indicator.user.js`
-
-Greasy Fork에 실제 게시한 뒤에는 위의 **GitHub 직접 설치 버튼** 대신 **Greasy Fork 배포 페이지의 설치 버튼**을 주된 설치 경로로 안내해야 통계가 집계됩니다. 기존 GitHub 자동 업데이트는 유지합니다.
-
 ## 자동 업데이트
 
 v1.3.7부터 GitHub의 공개 배포 파일에 다음 메타데이터를 포함합니다.
