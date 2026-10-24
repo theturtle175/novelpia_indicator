@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         노벨피아 인디케이터 — 작품 분석
 // @namespace    https://novelpia.com/indicator/cover-overlay
-// @version      1.3.11
+// @version      1.3.12
 // @description  종합점수 등급 캐릭터, 분석 결과의 총 조회수·회차 수 표시, 기존 평가 유지.
 // @match        https://novelpia.com/*
 // @match        https://www.novelpia.com/*
@@ -14,7 +14,7 @@
 
 (() => {
   'use strict';
-  const VERSION = '1.3.11';
+  const VERSION = '1.3.12';
   // 등급 캐릭터 이미지는 데이터 URI로 내장하여 네트워크와 별도 설치 없이 표시한다.
   // 현재 절대평가 컷은 임시 운영값(90, 80, ..., 20)으로 분리해 둔다.
   const GRADE_CUTS = Object.freeze([90,80,70,60,50,40,30,20]);
@@ -44,7 +44,7 @@
     verifyBatchSize: 100,
     safetyPages: 5000, // 중단 시 오류 표시. 1400화 고정 제한 아님
     checkpointTtl: 7 * 24 * 60 * 60_000,
-    recentWindowMs: 72 * 60 * 60_000, // 정확한 시각이 있으면 공개 후 72시간
+    recentWindowMs: 48 * 60 * 60_000, // 정확한 시각이 있으면 공개 후 48시간
     recentCalendarDays: 3, // 날짜만 있으면 KST 기준 게시 날짜 +3일 0시부터 포함
     recentTailExclusion: 3, // 최신 3회차는 공개 시점·제목과 무관하게 항상 평가 제외
   });
@@ -513,7 +513,7 @@
     return result;
   }
 
-  // 안정성 평가: EP.26부터 게시 후 72시간이 지난 회차만 사용하는 장기 연독 구간.
+  // 안정성 평가: 실제 공개 후 48시간, 시각 미확인 시 날짜+3일 기준을 충족한 회차.
   // 로그 변화율 중앙값(강건 추세), MAD(강건한 이상도), 국소 상승 이상치 및
   // 동일 시점에서 관측된 연속 회차의 수준 이동으로 급락 사건을 판정한다.
   // 한 시점의 누적 조회수만 사용한다. 8% / 3σ / 1.5%p 는 임시 임계값이다.
@@ -689,7 +689,7 @@
     return {latest:timed?instant:instant+24*60*60_000-1,exact:timed};
   }
 
-  // 날짜만 있는 회차는 한국 시간 날짜 경계로, 시각이 있는 회차는 정확히 72시간으로 계산한다.
+  // 날짜만 있는 회차는 KST 공개일+3일 0시, 정확한 시각이 있으면 48시간으로 계산한다.
   function episodeMaturityTime(window) {
     if (!window) return null;
     if (window.exact) return window.latest + CONFIG.recentWindowMs;
@@ -1184,7 +1184,7 @@
       const spike=m.spikes?.find(e=>e.end===row.chapter);
       const excluded=row.tailExcluded?'최신 3회차 제외':
         row.ageExcluded?(row.publishedTimeKnown
-          ?(row.publishedTimeExact?'공개 후 72시간 미경과 · 평가 제외':'날짜 기준 3일 미경과 · 평가 제외')
+          ?(row.publishedTimeExact?'공개 후 48시간 미경과 · 평가 제외':'날짜 기준 3일 미경과 · 평가 제외')
           :'공개 시각 확인 불가 · 평가 보류'):
         row.chapter<=m.retentionAnchorChapter?'초반 탐색 구간 제외':null;
       add('급락 판정',excluded|| (spike?'급증 (감점 없음)':existing?(existing.kind==='band'?'급락 밴드':'단일 급락'):'급락 아님'));
