@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         노벨피아 인디케이터 — 작품 분석
 // @namespace    https://novelpia.com/indicator/cover-overlay
-// @version      1.3.12
+// @version      1.3.13
 // @description  종합점수 등급 캐릭터, 분석 결과의 총 조회수·회차 수 표시, 기존 평가 유지.
 // @match        https://novelpia.com/*
 // @match        https://www.novelpia.com/*
@@ -14,7 +14,7 @@
 
 (() => {
   'use strict';
-  const VERSION = '1.3.12';
+  const VERSION = '1.3.13';
   // 등급 캐릭터 이미지는 데이터 URI로 내장하여 네트워크와 별도 설치 없이 표시한다.
   // 현재 절대평가 컷은 임시 운영값(90, 80, ..., 20)으로 분리해 둔다.
   const GRADE_CUTS = Object.freeze([90,80,70,60,50,40,30,20]);
@@ -818,8 +818,8 @@
     const breakdown = usableForScore ? [
       {name:'평균 조회수',max:25,value:metricScores.views/4},
       {name:'추천률',max:25,value:metricScores.recommendations/4},
-      {name:'장기 연독률',max:25,value:metricScores.retention/4},
-      {name:'조회수 안정성',max:25,value:metricScores.stability/4},
+      {name:'연독률',max:25,value:metricScores.retention/4},
+      {name:'안정성',max:25,value:metricScores.stability/4},
     ] : [];
     const score = usableForScore ? breakdown.reduce((sum,x)=>sum+x.value,0) : null;
     const metricGrades = Object.fromEntries(Object.entries(metricScores)
@@ -899,7 +899,6 @@
     .targetFill{height:100%;background:linear-gradient(90deg,#7a62e4,#a897ff);border-radius:999px}
     .modal{scrollbar-color:#515c78 #171c29}.eventValue{font-size:12px;color:#e9b7b5;margin-top:4px}.eventNote{font-size:11px;color:#aeb7ca;margin-top:3px}
     .empty{border:1px dashed #4b5366;padding:15px;border-radius:10px;color:#b0bbd0;font-size:12px}
-    .foot{color:#8e9bad;font-size:11px;line-height:1.7;border-top:1px solid #34394b;margin-top:18px;padding-top:12px}
     .coverBadge{position:fixed;z-index:2147483647;pointer-events:auto;border:1px solid #bcaafa;background:#24203deE;color:white;border-radius:10px;font-size:12px;font-weight:800;padding:5px 8px;box-shadow:0 4px 14px #0008}
     .coverBadge:hover,.coverBadge:focus-visible{background:#654ad3}
     .coverHint{position:fixed;z-index:2147483647;pointer-events:none;width:142px;border-radius:10px;border:1px solid #9982fc;background:#171a2eF2;color:white;box-shadow:0 6px 18px #0009;overflow:hidden;font-size:12px;font-weight:700;text-align:center;padding:8px 8px 11px}
@@ -924,7 +923,6 @@
       <div class="section"><span>급락 회차·밴드</span></div>
       <div class="eventList" id="events"></div>
       <div class="section">데이터 내보내기</div><div style="display:flex;gap:9px;flex-wrap:wrap"><button class="btn primary" id="export">CSV 저장</button><button class="btn" id="copy">CSV 복사</button><a id="detailLink" class="btn" style="text-decoration:none" target="_blank" rel="noopener">작품 페이지 ↗</a></div>
-      <div class="foot">※ 회차별 누적 조회수는 독자 수를 직접 의미하지 않습니다. 1~25화 및 최신 15화는 안정성 평가에서 제외합니다. 보정 연독률은 26화 기준, 100개 전환을 기준 길이로 사용하는 로그형 모델이며 통계적으로 검증된 웹소설 표준은 아닙니다. 안정성은 v1.1.0 판정식을 유지하고 급증은 감점하지 않습니다. 등급 경계값(90~20점)은 초기 절대평가안으로 조정될 수 있습니다. 데이터가 불완전하면 점수를 보류합니다.</div>
     </div></main></section></div>
   <div id="coverHint" class="coverHint" hidden>표지 분석 준비 중…</div>
   <button id="coverBadge" class="coverBadge" hidden type="button">분석 ↗</button>
@@ -1284,7 +1282,7 @@
       const secondary=document.createElement('span');secondary.className='secondaryRetention';
       secondary.textContent=extraValue;dual.append(secondary);box.append(dual);
     }
-    const s=document.createElement('div');s.className='hint';s.textContent=sub;box.append(s);
+    if(sub){const s=document.createElement('div');s.className='hint';s.textContent=sub;box.append(s);}
     if(Number.isFinite(metricScore)) {
       const line=document.createElement('div');line.className='gradeRow';
       const points=document.createElement('span');points.className='metricPoints';points.textContent=`${metricScore.toFixed(1)} / 100점`;
@@ -1320,15 +1318,13 @@
     const m = current.metrics;
     $('dataUi').hidden = false;
     $('summary').replaceChildren(
-      tile('평균 조회수',integer(m.avg),'평가 구간만 · 만점 기준 15,000회',m.metricScores.views),
+      tile('평균 조회수',integer(m.avg),'만점 기준 15000',m.metricScores.views),
       tile('평가 구간 추천률',percent(m.recRate),'만점 기준 10%',m.metricScores.recommendations),
-      tile('장기 연독률',`보정 ${percent(m.retentionAdjusted)}`,
-        `EP.26 → ${m.byChapter.get(m.matureLimit)?.display_label || '평가 가능 회차 없음'} · 최신 3회차·공개일 기준 ${m.recentCount}회 제외 · 만점 기준 60%`,
+      tile('연독률',`보정 ${percent(m.retentionAdjusted)}`,
+        `EP.26 → ${m.byChapter.get(m.matureLimit)?.display_label || '—'} · 만점 기준 60%`,
         m.metricScores.retention,`순수 ${percent(m.longTerm)}`),
-      tile('조회수 안정성',Number.isFinite(m.stabilityScore)?`${m.stabilityScore}점`:'평가 불가',
-        Number.isFinite(m.stabilityScore)?`${m.stabilityStatus} · 급락 ${m.stabilityEvents.length}건`:
-          (m.recentCount===m.data.length?'평가 대상 회차 없음':
-            m.evaluationFull?m.stabilityStatus:'평가 대상 조회수 검증 미완료'),m.metricScores.stability),
+      tile('안정성',Number.isFinite(m.stabilityScore)?`${m.stabilityScore}점`:'평가 불가',
+        Number.isFinite(m.stabilityScore)?`급락 ${m.stabilityEvents.length}건`:'',m.metricScores.stability),
     );
     const warning = $('warning'); warning.hidden = m.evaluationFull;
     warning.textContent = m.evaluationFull ? '' :
@@ -1359,7 +1355,7 @@
     const events = $('events');events.replaceChildren();
     const timeline = mergeEvents(m);
     if (!timeline.length) {
-      const el=document.createElement('div');el.className='empty';el.textContent='선정한 기준에 해당하는 급락 구간이 없습니다.';events.append(el);
+      const el=document.createElement('div');el.className='empty';el.textContent='급락 없음';events.append(el);
     }
     for (const event of timeline) {
       const card = document.createElement('div');card.className=`event ${event.kind==='band'?'bandEvent':event.kind==='spike'?'spikeEvent':'singleEvent'}`;
